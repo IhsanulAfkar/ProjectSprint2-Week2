@@ -22,6 +22,7 @@ func (h StaffController) SignUp(c *gin.Context) {
 			"message":err.Error()})
 		return
     }
+	// fmt.Println(staffForm)
 	// check phone format
 	if !helper.IsPhoneNumber(staffForm.PhoneNumber) || helper.ContainSpaces(staffForm.PhoneNumber) {
 		c.JSON(400,gin.H{
@@ -29,13 +30,19 @@ func (h StaffController) SignUp(c *gin.Context) {
 		return
 	}
 	conn := db.CreateConn()
-	var staff models.Staff
-	err := conn.QueryRowx("SELECT * FROM staff WHERE phone = $1 LIMIT 1", staffForm.PhoneNumber).StructScan(&staff)
-	if err != nil && err != sql.ErrNoRows {
+	
+	// err := conn.QueryRowx("SELECT * FROM staff WHERE phone = $1 LIMIT 1", staffForm.PhoneNumber).StructScan(&staff)
+	res, err := conn.Exec("SELECT * FROM staff WHERE phone = $1 LIMIT 1", staffForm.PhoneNumber)
+	if err != nil {
 
 		c.JSON(500, gin.H{"message": "server error"})
 		return
 	}
+	if rows,_ := res.RowsAffected(); rows != 0{
+		c.JSON(409, gin.H{"message": "phone number already taken"})
+		return
+	}
+
 	// check username
 	if len(staffForm.Name) < 5 || len(staffForm.Name) > 50 {
 	
@@ -55,7 +62,7 @@ func (h StaffController) SignUp(c *gin.Context) {
 		c.JSON(500, gin.H{"Message":err.Error()})
 		return
 	}
-	
+	var staff models.Staff
 	err = conn.QueryRowx("INSERT INTO staff (phone, name, password) VALUES ($1,$2,$3) RETURNING *",staffForm.PhoneNumber, staffForm.Name, hashedPass).StructScan(&staff)
 	if err != nil {
 		c.JSON(500, gin.H{"message":"failed to create user", "error": err.Error()})

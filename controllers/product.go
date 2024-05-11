@@ -18,9 +18,14 @@ type ProductController struct{}
 func (h ProductController) CreateProduct(c *gin.Context) {
 	var productForm forms.ProductCreate
 	if err := c.ShouldBindJSON(&productForm);err !=nil {
-	c.JSON(400, gin.H{"message":err.Error()})
-	return
+		c.JSON(400, gin.H{"message":err.Error()})
+		return
 	}
+	if productForm.IsAvailable == nil {
+		c.JSON(400, gin.H{"message":"bad request"})
+		return
+	}
+	// if productForm[""]
 	if productForm.Name == "" || productForm.Sku == "" || productForm.Notes == ""||productForm.Location == ""{
 		c.JSON(400, gin.H{"message":"bad request, cannot include empty string"})
 		return
@@ -41,9 +46,12 @@ func (h ProductController) CreateProduct(c *gin.Context) {
 		c.JSON(400, gin.H{"message":"bad request"})
 		return
 	}
-	
 	if productForm.Stock < 1 || productForm.Stock > 100000{
 		c.JSON(400, gin.H{"message":"stock invalid"})
+		return
+	}
+	if productForm.Price < 1{
+		c.JSON(400, gin.H{"message":"price invalid"})
 		return
 	}
 	if !helper.IsURL(productForm.ImageUrl) {
@@ -68,7 +76,7 @@ func (h ProductController) CreateProduct(c *gin.Context) {
 		"id":newId,
 		"createdAt": helper.FormatToIso860(createdAt),
 	}
-	c.JSON(200, gin.H{"message":"success","data":data})
+	c.JSON(201, gin.H{"message":"success","data":data})
 }
 func (h ProductController) GetAllProduct(c *gin.Context){
 	limit, errLimit := strconv.Atoi(c.DefaultQuery("limit", "5"))
@@ -171,14 +179,13 @@ func (h ProductController) GetAllProduct(c *gin.Context){
 		allQuery := strings.Join(queryParams, " AND")
 		sqlQuery += " AND " + allQuery 
 	}
-	orderBy := false
+	orderBy := true
 	var orderQuery []string
-	if createdAt != ""{
-		orderBy =true
+	if createdAt == ""{
+		orderQuery = append(orderQuery, " \"createdAt\" DESC")
+	}else{
 		if createdAt == "asc"{
 			orderQuery = append(orderQuery, " \"createdAt\" ASC")
-		} else {
-			orderQuery = append(orderQuery, " \"createdAt\" DESC")
 		}
 	}
 	if price != ""{
@@ -210,12 +217,16 @@ func (h ProductController) GetAllProduct(c *gin.Context){
 func (h ProductController)UpdateProduct(c *gin.Context){
 	productId := c.Param("productId")
 	if !helper.IsUUID(productId){
-		c.JSON(400, gin.H{"message":"invalid id"})
+		c.JSON(404, gin.H{"message":"invalid id"})
 		return
 	}
 	var productForm forms.ProductCreate
 	if err := c.ShouldBindJSON(&productForm);err !=nil {
 		c.JSON(400, gin.H{"message":err.Error()})
+		return
+	}
+	if productForm.IsAvailable == nil {
+		c.JSON(400, gin.H{"message":"bad request"})
 		return
 	}
 	if productForm.Name == "" || productForm.Sku == "" || productForm.Notes == ""||productForm.Location == ""{
@@ -241,6 +252,10 @@ func (h ProductController)UpdateProduct(c *gin.Context){
 	
 	if productForm.Stock < 1 || productForm.Stock > 100000{
 		c.JSON(400, gin.H{"message":"stock invalid"})
+		return
+	}
+	if productForm.Price < 1{
+		c.JSON(400, gin.H{"message":"price invalid"})
 		return
 	}
 	if !helper.IsURL(productForm.ImageUrl) {
@@ -282,7 +297,7 @@ func (h ProductController)UpdateProduct(c *gin.Context){
 func (h ProductController)DeleteProduct(c *gin.Context){
 	productId := c.Param("productId")
 	if !helper.IsUUID(productId){
-		c.JSON(400, gin.H{"message":"bad request"})
+		c.JSON(404, gin.H{"message":"bad request"})
 		return
 	}
 	// check if exist
@@ -378,22 +393,27 @@ func (h ProductController)SearchBySKU(c *gin.Context){
 		allQuery := strings.Join(queryParams, " AND")
 		sqlQuery += " AND " + allQuery 
 	}
-	orderBy := false
-	var orderQuery []string
-	
+	// orderBy := false
+	// var orderQuery []string
+	sqlQuery += " ORDER BY "
 	if price != ""{
-		orderBy = true
+		// orderBy = true
 		if price =="asc" {
-			orderQuery = append(orderQuery, " price ASC")
+			// orderQuery = append(orderQuery, " price ASC")
+			sqlQuery += " price ASC"
 		} else {
-			orderQuery = append(orderQuery, " price DESC")
+			sqlQuery += " price DESC"
+			// orderQuery = append(orderQuery, " price DESC")
 		}
+	} else {
+		sqlQuery += "\"createdAt\" DESC"
 	}
-	if orderBy {
-		sqlQuery += " ORDER BY " + strings.Join(orderQuery, ",")
-	}
-	sqlQuery += " LIMIT " + strconv.Itoa(limit) + " OFFSET " + strconv.Itoa(offset)
 	
+	
+	// if orderBy {
+	// 	sqlQuery +=  ", " +strings.Join(orderQuery, ",")
+	// }
+	sqlQuery += " LIMIT " + strconv.Itoa(limit) + " OFFSET " + strconv.Itoa(offset)
 	conn := db.CreateConn()
 	
 	products := make([]models.Product, 0)
@@ -422,12 +442,21 @@ func (h ProductController)Checkout(c *gin.Context){
 		c.JSON(400, gin.H{"message":"paid cannot below 0"})
 		return
 	}
-	if checkoutForm.Change < 0{
+	if checkoutForm.Change == nil{
+		c.JSON(400, gin.H{"message":"invalid change"})
+		return
+	}
+	if *checkoutForm.Change < 0{
 		c.JSON(400, gin.H{"message":"change cannot below 0"})
 		return
 	}
 	if len(checkoutForm.ProductDetails) == 0 {
 		c.JSON(400, gin.H{"message":"product cannot empty"})
+		return
+	}
+	// check if product list is unique
+	if !helper.IsProductsUnique(checkoutForm.ProductDetails){
+		c.JSON(400, gin.H{"message":"duplicate product list"})
 		return
 	}
 	// find customer
@@ -448,14 +477,23 @@ func (h ProductController)Checkout(c *gin.Context){
 	var products []models.ProductCheckout
 	// check each product
 	for _, productDetail := range checkoutForm.ProductDetails {
-		// check if product id is uuid
-		if !helper.IsUUID(productDetail.ProductId){
-			c.JSON(404, gin.H{"message":"invalid product id"})
+		if productDetail.Quantity <1 {
+			c.JSON(400, gin.H{"message":"invalid quantity"})
 			return
 		}
+		// validate
+		if productDetail.ProductId == ""{
+			c.JSON(400, gin.H{"message":"productId cannot be empty"})
+			return
+		}
+		
+		// if !helper.IsUUID(productDetail.ProductId){
+		// 	c.JSON(400, gin.H{"message":"invalid product id"})
+		// 	return
+		// }
 		// find product
 		var product models.ProductCheckout
-		query = "SELECT * FROM product WHERE \"deletedAt\" IS NULL AND id = $1 AND \"isAvailable\" = true"
+		query = "SELECT * FROM product WHERE \"deletedAt\" IS NULL AND id::text = $1 AND \"isAvailable\" = true"
 		err = conn.QueryRowx(query, productDetail.ProductId).StructScan(&product)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -480,7 +518,7 @@ func (h ProductController)Checkout(c *gin.Context){
 		products = append(products, product)
 	}
 	// check if paid and change is valid
-	if checkoutForm.Paid - checkoutForm.Change != totalPrice {
+	if checkoutForm.Paid - *checkoutForm.Change != totalPrice {
 		c.JSON(400, gin.H{"message":"incorrect paid and change value"})
 		return
 	}
@@ -572,15 +610,14 @@ func (h ProductController)GetAllCheckout(c *gin.Context){
 		allQuery := strings.Join(queryParams, " AND")
 		sqlQuery += " WHERE "+ allQuery
 	}
-	orderBy := false
+	orderBy := true
 	var orderQuery []string
-	if createdAt != ""{
-		orderBy =true
+	if createdAt == "" {
+		orderQuery = append(orderQuery, " \"createdAt\" DESC")
+	}else {		
 		if createdAt == "asc"{
 			orderQuery = append(orderQuery, " \"createdAt\" ASC")
-		} else {
-			orderQuery = append(orderQuery, " \"createdAt\" DESC")
-		}
+		} 
 	}
 	if orderBy {
 		sqlQuery += " ORDER BY " + strings.Join(orderQuery, ",")
@@ -622,6 +659,7 @@ func (h ProductController)GetAllCheckout(c *gin.Context){
 		getCheckout.ProductDetails = productDetails
 		getCheckout.Paid = checkout.Paid
 		getCheckout.Change = checkout.Change
+		getCheckout.CreatedAt = checkout.CreatedAt
 		getCheckouts = append(getCheckouts, getCheckout)
 	}
 	c.JSON(200, gin.H{"message":"success","data":getCheckouts})

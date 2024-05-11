@@ -1,15 +1,17 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/jmoiron/sqlx"
 )
 var db *sqlx.DB
 var err error
-func Init() {
+func Init(ctx context.Context) {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s",
 		os.Getenv("DB_USERNAME"),
 		os.Getenv("DB_PASSWORD"),
@@ -18,12 +20,16 @@ func Init() {
 		os.Getenv("DB_NAME"),
 		os.Getenv("DB_PARAMS"),
 	)
-	db, err = sqlx.Connect("pgx", connStr)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	db, err = sqlx.ConnectContext(ctx, "pgx", connStr)
 	if err != nil {
 		panic(err.Error())
 	}
 	db.DB.SetMaxOpenConns(100)
-	db.DB.SetMaxIdleConns(10)
+	db.DB.SetConnMaxIdleTime(time.Second  * 5)
+	db.DB.SetConnMaxLifetime(time.Hour)
+	// db.DB.SetMaxIdleConns(10)
 	// Migrations
 	// migrate -database "postgresql://root:root@localhost:5432/eniqilo?sslmode=disable" -path db/migrations up
 }

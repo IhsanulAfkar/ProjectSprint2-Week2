@@ -9,7 +9,7 @@ type ProductCreate struct {
 	Price       int    `json:"price"`
 	Stock       int    `json:"stock"`
 	Location    string `json:"location"`
-	IsAvailable bool   `json:"isAvailable"`
+	IsAvailable *bool  `json:"isAvailable"`
 }
 type ProductDetail struct {
 	ProductId string `json:"productId"`
@@ -19,5 +19,5 @@ type Checkout struct {
 	CustomerId     string          `json:"customerId"`
 	ProductDetails []ProductDetail `json:"productDetails"`
 	Paid           int             `json:"paid"`
-	Change         int             `json:"change"`
+	Change         *int            `json:"change"`
 }

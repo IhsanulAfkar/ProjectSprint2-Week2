@@ -24,6 +24,11 @@ func (h CustomerController) CreateCustomer(c *gin.Context){
 		c.JSON(400, gin.H{"message":"incorrect phone number"})
 		return
 	}
+	if len(customerForm.Name) == 0 {
+		c.JSON(400, gin.H{"message":"incorrect name"})
+		return
+
+	}
 	conn := db.CreateConn()
 	var customer models.Customer
 	// check phone number
@@ -34,7 +39,7 @@ func (h CustomerController) CreateCustomer(c *gin.Context){
 		return
 	}
 	if row, _:= res.RowsAffected(); row > 0 {
-		c.JSON(400, gin.H{"message":"phone number already exist"})
+		c.JSON(409, gin.H{"message":"phone number already exist"})
 		return
 	}
 	err = conn.QueryRowx("INSERT INTO customer (name, phone) VALUES ($1, $2) RETURNING *", customerForm.Name, customerForm.PhoneNumber).StructScan(&customer)

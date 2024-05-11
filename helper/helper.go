@@ -1,26 +1,31 @@
 package helper
 
 import (
-	"net/url"
+	"Week2/forms"
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/nyaruka/phonenumbers"
 )
 
 func IsPhoneNumber(phoneNumber string) bool {
+	if len(phoneNumber) == 0{
+		return false
+	}
 	if phoneNumber[0] != '+' {	
 		return false
 	}
-    // Parse the phone number
-    parsedPhoneNumber, err := phonenumbers.Parse(phoneNumber, "")
-    if err != nil {
-        return false
-    }
 
-    // Check if the phone number is valid according to the library
-    return phonenumbers.IsValidNumber(parsedPhoneNumber)
+	return true
+    // Parse the phone number
+    // parsedPhoneNumber, err := phonenumbers.Parse(phoneNumber, "")
+	// fmt.Println(parsedPhoneNumber)
+    // if err != nil {
+	// 	fmt.Println(err.Error())
+    //     return false
+    // }
+
+    // // Check if the phone number is valid according to the library
+    // return phonenumbers.IsValidNumber(parsedPhoneNumber)
 }
 func Includes(target string, array []string)bool{
 	for _, value := range array {
@@ -31,8 +36,14 @@ func Includes(target string, array []string)bool{
     return false
 }
 func IsURL(s string) bool {
-	u, err := url.Parse(s)
-	return err == nil && u.Scheme != "" && u.Host != ""
+	// fmt.Println(s)
+	// u, err := url.ParseRequestURI(s)
+	// fmt.Println(u.Scheme)
+	// return err == nil && u.Scheme != "" && u.Host != ""
+	regex := `https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$`
+	pattern := regexp.MustCompile(regex)
+	return pattern.MatchString(s)
+	// return govalidator.IsURL(s)
 }
 func FormatToIso860(s string)string {
 	t, err := time.Parse(time.RFC3339, s)
@@ -53,4 +64,23 @@ func RemoveSpaces(s string)string {
 }
 func ContainSpaces(s string)bool{
 	return strings.Contains(s, " ")
+}
+
+// func SanitizePhoneNumber(s string) string{
+// 	s = strings
+// }
+func IsProductsUnique(items []forms.ProductDetail) bool {
+	seen := make(map[string]bool) // Map to store IDs already seen
+
+	for _, item := range items {
+		if seen[item.ProductId] {
+			// ID is not unique, return false
+			return false
+		}
+		// Mark the ID as seen
+		seen[item.ProductId] = true
+	}
+
+	// All IDs are unique
+	return true
 }

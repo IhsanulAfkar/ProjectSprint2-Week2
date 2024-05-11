@@ -9,3 +9,9 @@ npm run dev
 // or
 go build
 ```
+
+docker
+
+```
+docker run -p
+```

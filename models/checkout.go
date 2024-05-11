@@ -26,4 +26,5 @@ type GetCheckout struct {
 	ProductDetails []forms.ProductDetail `json:"productDetails"`
 	Paid           int             `json:"paid"`
 	Change         int             `json:"change"`
+	CreatedAt	string `json:"createdAt"`
 }
